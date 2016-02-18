@@ -1,7 +1,12 @@
+PWD := $(shell pwd)
 
-PWD := $(shell pwd)  
+ifeq ($(ARCH), arm)
+# when compiling for ARM we're cross compiling
+export CROSS_COMPILE ?= $(call check_cc2, arm-linux-gnueabi-gcc, arm-linux-gnueabi-, arm-eabi-)
+endif
 
 .PHONY: build clean  
+
 
 build:
 	 $(MAKE) -C $(KDIR) M=$(PWD) modules  
