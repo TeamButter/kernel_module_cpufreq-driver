@@ -1,0 +1,6 @@
+*.c~
+*.mk~
+*.o
+*.ko
+.gitignore~
+Makefile~
