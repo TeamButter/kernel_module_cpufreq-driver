@@ -62,13 +62,13 @@
 #define TRANSITION_LATENCY	(10 * 1000 * 1000)
 
 /* 
- * WAIT_BOOT_TIME: (jiffies)
+ * WAIT_BOOT_TIME: (seconds)
  * 	We do not change frequency at early boot up and let the clock stabilize first. 
  * WAIT_TRANS_TIME: (msecs)
  * 	Changing frequency is a very costly operation due to extensive locking. 
  * So we limit actual transistions regardless of the transistion  latency.
  */ 
-#define WAIT_BOOT_TIME         (60 * HZ)
+#define WAIT_BOOT_TIME         (52)
 #define WAIT_TRANS_TIME		(100)
 
 static DEFINE_MUTEX(freq_lock);
@@ -96,7 +96,7 @@ enum clocking_levels {
 	OC5,OC4,OC3,OC2,OC1,	/* over clock */
 	NOC, UC0=NOC, OC0=NOC,	/* no over or under clock */
 	UC1, UC2, UC3, UC4,	/* under clock */
-	MAX_OC=OC5,MAX_UC=UC4,
+	MAX_CL=OC5,MIN_CL=UC4,
 	EC, 			/* end of clocking */
 };
 
@@ -117,16 +117,16 @@ static struct cpufreq_table_data sc8810_cpufreq_table_data = {
 	},
 	/* 50mV steps */
 	.vdduv_tbl = {
-	[OC5] =	1350000,
-	[OC3] = 1300000,
-	[OC3] =	1250000,
-	[OC2] =	1200000,
-	[OC1] =	1150000,
-	[NOC] =	1100000,
-	[UC1] =	1050000,
-	[UC2] =	1000000,
-	[UC3] =	950000,
-	[UC4] =	900000,
+	[OC5] =	1100000,
+	[OC4] = 1050000,
+	[OC3] =	1000000,
+	[OC2] =	950000,
+	[OC1] =	900000,
+	[NOC] =	850000,
+	[UC1] =	800000,
+	[UC2] =	750000,
+	[UC3] =	700000,
+	[UC4] =	650000,
 	[EC] =	1100000,
 	},
 };
@@ -164,15 +164,15 @@ static inline int sprd_raw_setvolt(unsigned long vdd_uv) {
 
 /* function to find index when cpufreq core gives us wrong index */
 static inline void sprd_find_freqtbl_index (unsigned long freq, unsigned int *index) {
-	 int i = 0; 
+	 int i = MAX_CL;
 /* fallback frequency  */
      *index = NOC;
 
 /* ignore the whole target relation crap and use integer division */
 /* this should give a frequency pretty close to target */
 
-    // TODO: optimize this loop with MAX_OC, MAX_UC, and NOC
-	while ( i < FREQ_TABLE_SIZE) {
+    // TODO: optimize this loop with MAX_CL, MIN_CL, and NOC
+	while ( i <= MIN_CL) {
 		if ((sprd_cpufreq_conf->freq_tbl[i].frequency / 100000 ) == (freq / 100000 ))
 			*index = i;
              i++;
@@ -276,7 +276,8 @@ static int sprd_cpufreq_target(struct cpufreq_policy *policy,
 
 	cpufreq_notify_transition(&global_freqs, CPUFREQ_POSTCHANGE);
 
-	global_freqs.old = global_freqs.new;     trans_time=jiffies+msecs_to_jiffies(WAIT_TRANS_TIME);
+	global_freqs.old = global_freqs.new;
+	trans_time = jiffies + msecs_to_jiffies(WAIT_TRANS_TIME);
 
 	mutex_unlock(&freq_lock);
 
@@ -293,19 +294,15 @@ static unsigned int sprd_cpufreq_getspeed(unsigned int cpu)
 
 static void sprd_gen_freq_table(void)
 {
-	int i;
 
 	/* initalize frequency table */
 	sprd_cpufreq_conf->freq_tbl = sc8810_cpufreq_table_data.freq_tbl;
 	sprd_cpufreq_conf->vdduv_tbl = sc8810_cpufreq_table_data.vdduv_tbl;
-	/* calculate min and max frequency */
-	freq_max_limit = sprd_cpufreq_conf->freq_tbl[0].frequency;
 
-	for (i = 1; i < FREQ_TABLE_SIZE; i++) {
-		if (sprd_cpufreq_conf->freq_tbl[i].frequency == CPUFREQ_TABLE_END)
-			break;
-	}
-	freq_min_limit = sprd_cpufreq_conf->freq_tbl[i-1].frequency;
+	/* set min and max frequency */
+	freq_max_limit = sprd_cpufreq_conf->freq_tbl[MAX_CL].frequency;
+
+	freq_min_limit = sprd_cpufreq_conf->freq_tbl[MIN_CL].frequency;
 
 	pr_info("gen_freq_table:  min limit=%dKhz, max limit=%dKhz \n" , freq_min_limit, freq_max_limit);
 
@@ -351,6 +348,47 @@ static struct freq_attr *sprd_cpufreq_attr[] = {
 	NULL,
 };
 
+ssize_t sprd_vdd_get(char *buf) {
+	int i, len = 0;
+	for (i = 0; i <= MIN_CL; i++) {
+		len += sprintf(buf + len, "%umhz: %lu mV\n", sprd_cpufreq_conf->freq_tbl[i].frequency / 1000, sprd_cpufreq_conf->vdduv_tbl[i] / 1000);
+	}
+	return len;
+}
+
+void sprd_vdd_set(const char *buf) {
+	int ret = -EINVAL;
+	int i = 0;
+	int j = 0;
+	int u[MIN_CL + 1];
+	while (j < MIN_CL + 1) {
+		int consumed;
+		int val;
+		ret = sscanf(buf, "%d%n", &val, &consumed);
+		if (ret > 0) {
+			buf += consumed;
+			u[j++] = val;
+		}
+		else {
+			break;
+		}
+	}
+
+	for (i = 0; i < j; i++) {
+		if (u[i] > ARMVOLT_MAX / 1000) {
+			u[i] = ARMVOLT_MAX / 1000;
+		}
+         if( u[i] % 25 == 0 ) {
+		 sprd_cpufreq_conf->vdduv_tbl[i] = u[i] * 1000; }
+	}
+   return;
+}
+
+static struct vdd_levels_control sprd_vdd_control = {
+      .get = sprd_vdd_get,
+      .set = sprd_vdd_set,
+};
+
 static struct cpufreq_driver sprd_cpufreq_driver = {
 	.verify		= sprd_cpufreq_verify_speed,
 	.target		= sprd_cpufreq_target,
@@ -359,6 +397,7 @@ static struct cpufreq_driver sprd_cpufreq_driver = {
 	.exit		= sprd_cpufreq_exit,
 	.name		= "cpufreq_sc8810",
 	.attr		= sprd_cpufreq_attr,
+	.volt_control = &sprd_vdd_control ,
 };
 
 
@@ -405,8 +444,8 @@ static int __init sprd_cpufreq_modinit(void)
 		pr_info("modinit: got regulator" );
 	}
 
-	boot_time=WAIT_BOOT_TIME;
-	trans_time=jiffies - msecs_to_jiffies(WAIT_BOOT_TIME*10);
+	boot_time = jiffies + msecs_to_jiffies(WAIT_BOOT_TIME*1000);
+	trans_time = boot_time - msecs_to_jiffies(WAIT_TRANS_TIME);
 	global_freqs.old = sprd_raw_getfreq();
 
 	pr_info("modinit: old_frequency: %dKhz, old_volt: %lu mV",  global_freqs.old, sprd_raw_getvolt() / 1000 );
