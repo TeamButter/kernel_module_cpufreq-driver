@@ -4,3 +4,6 @@
 *.ko
 .gitignore~
 Makefile~
+.tmp_versions/
+Module.symvers
+modules.order
