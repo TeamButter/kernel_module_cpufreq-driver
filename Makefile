@@ -17,5 +17,5 @@ clean:
 
 $(info Building with KERNELRELEASE = ${KERNELRELEASE}) 
 
-KBUILD_CPPFLAGS += -std=gnu99
+#KBUILD_CPPFLAGS += -std=gnu99
 obj-m :=    cpufreq-sc8810.o
