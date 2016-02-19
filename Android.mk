@@ -9,5 +9,7 @@ LOCAL_SRC_FILES := $(LOCAL_MODULE)
 include $(BUILD_PREBUILT)
 
 
-$(LOCAL_PATH)/cpufreq-sc8810.ko: bootimage
+$(LOCAL_PATH)/cpufreq-sc8810.ko:
+	$(MAKE) -C $(shell dirname $@) ARCH=arm CROSS_COMPILE=$(ARM_EABI_TOOLCHAIN)/arm-eabi- KDIR=$(ANDROID_PRODUCT_OUT)/obj/KERNEL_OBJ clean
 	$(MAKE) -C $(shell dirname $@) ARCH=arm CROSS_COMPILE=$(ARM_EABI_TOOLCHAIN)/arm-eabi- KDIR=$(ANDROID_PRODUCT_OUT)/obj/KERNEL_OBJ
+	$(ARM_EABI_TOOLCHAIN)/arm-eabi-strip --strip-unneeded $(shell dirname $@)/cpufreq-sc8810.ko 
