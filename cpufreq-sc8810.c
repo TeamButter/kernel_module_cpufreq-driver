@@ -93,21 +93,15 @@ struct cpufreq_table_data {
 };
 
 enum clocking_levels {
-	OC5,OC4,OC3,OC2,OC1,	/* over clock */
-	NOC, UC0=NOC, OC0=NOC,	/* no over or under clock */
+	NOC, UC0=NOC,		/* no over or under clock */
 	UC1, UC2, UC3, UC4,	/* under clock */
-	MAX_CL=OC5,MIN_CL=UC4,
+	MAX_CL=NOC,MIN_CL=UC4,
 	EC, 			/* end of clocking */
 };
 
 static struct cpufreq_table_data sc8810_cpufreq_table_data = {
 	/* multiplier should be a multiple of 4 to allow efficient scaling */
 	.freq_tbl = {		/* M*25 */
-		{OC5, 1500000}, /*  60  */
-		{OC4, 1400000}, /*  56  */
-		{OC3, 1300000},	/*  52  */
-		{OC2, 1200000},	/*  48  */
-		{OC1, 1100000},	/*  44  */
 		{NOC, 1000000},	/*  40  */
 		{UC1, 900000},  /*  36  */
 		{UC2, 800000},  /*  32  */
@@ -117,17 +111,12 @@ static struct cpufreq_table_data sc8810_cpufreq_table_data = {
 	},
 	/* 50mV steps */
 	.vdduv_tbl = {
-	[OC5] =	1100000,
-	[OC4] = 1050000,
-	[OC3] =	1000000,
-	[OC2] =	950000,
-	[OC1] =	900000,
 	[NOC] =	850000,
 	[UC1] =	800000,
 	[UC2] =	750000,
 	[UC3] =	700000,
 	[UC4] =	650000,
-	[EC] =	1100000,
+	[EC] =	850000,
 	},
 };
 
@@ -356,38 +345,6 @@ ssize_t sprd_vdd_get(char *buf) {
 	return len;
 }
 
-void sprd_vdd_set(const char *buf) {
-	int ret = -EINVAL;
-	int i = 0;
-	int j = 0;
-	int u[MIN_CL + 1];
-	while (j < MIN_CL + 1) {
-		int consumed;
-		int val;
-		ret = sscanf(buf, "%d%n", &val, &consumed);
-		if (ret > 0) {
-			buf += consumed;
-			u[j++] = val;
-		}
-		else {
-			break;
-		}
-	}
-
-	for (i = 0; i < j; i++) {
-		if (u[i] > ARMVOLT_MAX / 1000) {
-			u[i] = ARMVOLT_MAX / 1000;
-		}
-         if( u[i] % 25 == 0 ) {
-		 sprd_cpufreq_conf->vdduv_tbl[i] = u[i] * 1000; }
-	}
-   return;
-}
-
-static struct vdd_levels_control sprd_vdd_control = {
-      .get = sprd_vdd_get,
-      .set = sprd_vdd_set,
-};
 
 static struct cpufreq_driver sprd_cpufreq_driver = {
 	.verify		= sprd_cpufreq_verify_speed,
@@ -397,7 +354,6 @@ static struct cpufreq_driver sprd_cpufreq_driver = {
 	.exit		= sprd_cpufreq_exit,
 	.name		= "cpufreq_sc8810",
 	.attr		= sprd_cpufreq_attr,
-	.volt_control = &sprd_vdd_control ,
 };
 
 
