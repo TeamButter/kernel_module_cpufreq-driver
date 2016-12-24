@@ -1,5 +1,5 @@
 ## Note 
-You will need to apply this commit **https://github.com/TeamButter/android_kernel_samsung_mint2g/commit/12b6ba18e84ed67b6122a04460df0ec0281d2f5f ** to  kernel/power/main.c .
+You will need to apply this commit **https://github.com/TeamButter/android_kernel_samsung_mint2g/commit/12b6ba18e84ed67b6122a04460df0ec0281d2f5f** to  kernel/power/main.c .
 
 ## build
 
